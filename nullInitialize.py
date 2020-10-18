@@ -197,11 +197,8 @@ def placeNullInitialization(lValue, daughterVariables, delimitedLines, fileText)
                 daughterLinesToBeRemoved.append(line.strip())
                 break
 
-    print(daughterLinesToBeRemoved)
-    nullCheckBlock = nullCheckBlock % tuple(daughterLinesToBeRemoved)
     # Prepare null check block
-    print(nullCheckBlock)
-
+    nullCheckBlock = nullCheckBlock % tuple(daughterLinesToBeRemoved)
     nullCheckBlockInsertionPlace = fileTextWithNullInitialization.find(
                                         daughterLinesToBeRemoved[0])
     for daughterLineToBeRemoved in daughterLinesToBeRemoved:
@@ -211,7 +208,7 @@ def placeNullInitialization(lValue, daughterVariables, delimitedLines, fileText)
                                       + "\n " + nullCheckBlock \
                                       + fileTextWithNullInitialization[nullCheckBlockInsertionPlace:]
 
-    print("FINAL \n", fileTextWithNullInitialization)
+    print("Corrected Script: \n", fileTextWithNullInitialization)
     return fileTextWithNullInitialization
 
 def main():
@@ -227,8 +224,9 @@ def main():
 
     delimitedLines     = preProcessText(fileText)
 
-    for i in delimitedLines:
-        print(i)
+    # For Debugging purpose
+    #for i in delimitedLines:
+    #    print(i)
 
     # Find variable of interest
     variableOfInterest  = None
@@ -273,8 +271,8 @@ def main():
             # Reset it
             rhsVariableSet_ = set([])
 
-    print("---------")
-    print("Final Dependency Map", dependencyMap)
+    #print("---------")
+    #print("Final Dependency Map", dependencyMap)
 
     # Generate null initialization code
     #modifiedCode = placeNullInitialization(variableOfInterest, delimitedLines, fileText)
