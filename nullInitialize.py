@@ -1,7 +1,10 @@
 #!/usr/bin/python3
 
 import argparse
+import colorama
 import re
+
+from colorama import Fore, Style
 
 ########## UTILITY CLASS ##############
 def readFileContents(qualifiedFilename):
@@ -9,6 +12,39 @@ def readFileContents(qualifiedFilename):
     Read file contents and apply
     """
     return open(qualifiedFilename).read()
+
+def getGreenText(text, shouldPrint=True):
+    """
+    print text in green
+    """
+    greenText = Fore.GREEN + text + Style.RESET_ALL
+    if shouldPrint:
+        print(greenText)
+
+    return greenText
+    #print(f"{Fore.GREEN}Heeloo{Style.RESET_ALL}")
+
+def getRedText(text, shouldPrint=True):
+    """
+    print text in red
+    """
+    redText = Fore.RED + text + Style.RESET_ALL
+    if shouldPrint:
+        print(redText)
+
+    return redText
+
+def writeFileContents(filePath, fileText):
+    """
+    filePath
+    """
+    fileName, fileExtension = filePath.split(".")
+    fileName += "_GENERATED"
+    filePath_ = fileName + "." + fileExtension
+    fileHandler = open(filePath_, "w")
+    fileHandler.write(fileText)
+    fileHandler.close()
+    
 
 #######################################
 class DependencyObject:
@@ -126,7 +162,7 @@ def buildInitializationStatements(variableOfInterest, dependencyMap, delimitedLi
     # CASE 1 parent initialization | parent null check
     daughterVariables = findDaughterVariables(variableOfInterest, dependencyMap)
 
-    placeNullInitialization(variableOfInterest, daughterVariables, delimitedLines, fileText)
+    return placeNullInitialization(variableOfInterest, daughterVariables, delimitedLines, fileText)
 
 
 
@@ -166,7 +202,9 @@ def placeNullInitialization(lValue, daughterVariables, delimitedLines, fileText)
     places null initialization statement before the first instance of the lvalue
     """
     firstInstanceLine = 0
-    initializationStatement = generateNullInitialized(lValue)
+    # To Print
+    initializationStatement      = generateNullInitialized(lValue)
+
     for line in delimitedLines:
         # Found the first instance where lvalue was used
         if line.find(lValue) != -1:
@@ -184,6 +222,20 @@ def placeNullInitialization(lValue, daughterVariables, delimitedLines, fileText)
     fileTextWithNullInitialization = ""
     for line in delimitedLinesWithoutPreprocessing[:-1]:
         fileTextWithNullInitialization += line + ";"
+
+    ### TO PRINT
+    initializationStatementPrint = getGreenText(generateNullInitialized(lValue), False)
+    delimitedLinesWithoutPreprocessing = fileText.split(";")
+    # Place if properly
+    if firstInstanceLine == 0:
+        delimitedLinesWithoutPreprocessing.insert(0, initializationStatementPrint)
+    else:
+        delimitedLinesWithoutPreprocessing.insert(firstInstanceLine-1, initializationStatementPrint)
+
+    fileTextWithNullInitializationPrint = ""
+    for line in delimitedLinesWithoutPreprocessing[:-1]:
+        fileTextWithNullInitializationPrint += line + ";"
+
 
     # Append last line without colon
     fileTextWithNullInitialization += delimitedLinesWithoutPreprocessing[-1]
@@ -204,11 +256,17 @@ def placeNullInitialization(lValue, daughterVariables, delimitedLines, fileText)
     for daughterLineToBeRemoved in daughterLinesToBeRemoved:
         fileTextWithNullInitialization = fileTextWithNullInitialization.replace(daughterLineToBeRemoved, "")
 
-    fileTextWithNullInitialization = fileTextWithNullInitialization[:nullCheckBlockInsertionPlace] \
+    ### TO PRINT 
+    fileTextWithNullInitializationPrint = fileTextWithNullInitializationPrint[:nullCheckBlockInsertionPlace] \
+                                      + "\n " + getGreenText(nullCheckBlock, False) \
+                                      + fileTextWithNullInitializationPrint[nullCheckBlockInsertionPlace:]
+    
+    fileTextWithNullInitialization  = fileTextWithNullInitialization[:nullCheckBlockInsertionPlace] \
                                       + "\n " + nullCheckBlock \
                                       + fileTextWithNullInitialization[nullCheckBlockInsertionPlace:]
 
-    print("Corrected Script: \n", fileTextWithNullInitialization)
+
+    print(fileTextWithNullInitializationPrint)
     return fileTextWithNullInitialization
 
 def main():
@@ -276,8 +334,10 @@ def main():
 
     # Generate null initialization code
     #modifiedCode = placeNullInitialization(variableOfInterest, delimitedLines, fileText)
-    buildInitializationStatements(variableOfInterest, dependencyMap, delimitedLines,
-                           fileText)
+    fileTextWithNullInitialization = buildInitializationStatements(variableOfInterest, 
+                                        dependencyMap, delimitedLines, fileText)
+    writeFileContents(args.file, fileTextWithNullInitialization)
+    # Write to file
     #print(modifiedCode)
 
 
