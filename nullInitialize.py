@@ -3,7 +3,7 @@
 import argparse
 import colorama
 import re
-
+import os
 from colorama import Fore, Style
 
 ########## UTILITY CLASS ##############
@@ -52,6 +52,13 @@ class DependencyObject:
         self.dependencyMap = dependencyMap
         self.line          = line
         self.lValue        = lValue
+
+class SearchSpaceTextClass:
+    def __init__(self, searchSpaceText, lineNumber, startCharIndex, endCharIndex):
+        self.searchSpaceText = searchSpaceText
+        self.lineNumber      = lineNumber
+        self.startCharIndex  = startCharIndex
+        self.endCharIndex    = endCharIndex
 
 def replaceAllNewline(line ):
     while (line.find("\n") != -1):
@@ -150,8 +157,10 @@ def buildVariableDependenceMap(line):
     return dependencyObject
 
 
-def buildInitializationStatements(variableOfInterest, dependencyMap, delimitedLines, fileText):
+def buildInitializationStatements(variableOfInterest, dependencyMap, 
+            delimitedLines, searchSpaceTextObject):
     """
+    Generate code with null initialization
     """
     
     rValuesSet = dependencyMap.get(variableOfInterest, [])
@@ -161,9 +170,10 @@ def buildInitializationStatements(variableOfInterest, dependencyMap, delimitedLi
 
     # CASE 1 parent initialization | parent null check
     daughterVariables = findDaughterVariables(variableOfInterest, dependencyMap)
+    print("DaughterVariables ", daughterVariables)
 
-    return placeNullInitialization(variableOfInterest, daughterVariables, delimitedLines, fileText)
-
+    return placeNullInitialization(variableOfInterest, daughterVariables, 
+                    delimitedLines, searchSpaceTextObject)
 
 
 def findDaughterVariables(variableOfInterest, dependencyMap):
@@ -197,10 +207,14 @@ def generateNullInitialized(lValue):
     return "\n    %s = null; //NOTE Auto-generated initialization"%lValue
 
 
-def placeNullInitialization(lValue, daughterVariables, delimitedLines, fileText):
+def placeNullInitialization(lValue, daughterVariables, delimitedLines, searchSpaceTextObject):
     """
     places null initialization statement before the first instance of the lvalue
     """
+
+    fileText          = searchSpaceTextObject.searchSpaceText
+    lineNumber        = searchSpaceTextObject.lineNumber
+
     firstInstanceLine = 0
     # To Print
     initializationStatement      = generateNullInitialized(lValue)
@@ -239,7 +253,13 @@ def placeNullInitialization(lValue, daughterVariables, delimitedLines, fileText)
 
     # Append last line without colon
     fileTextWithNullInitialization += delimitedLinesWithoutPreprocessing[-1]
-    
+
+    # If there are no daughter variables
+    if not daughterVariables:
+        getGreenText("@@@@ Adding it on line: %s"%str(lineNumber))
+        print(fileTextWithNullInitializationPrint)
+        return fileTextWithNullInitialization
+
     # For daughterVariables
     daughterLinesToBeRemoved = [] # These are also the lines which will be inside null check
     nullCheckBlock = "\n\t\\\\NOTE Auto-generated if Block\n    if (%s){\n%s    }"%(lValue, "      %s\n"*len(daughterVariables))
@@ -249,12 +269,19 @@ def placeNullInitialization(lValue, daughterVariables, delimitedLines, fileText)
                 daughterLinesToBeRemoved.append(line.strip())
                 break
 
+    # No daughterVariables found then leave everything as it is
+    if not daughterLinesToBeRemoved:
+        print(fileTextWithNullInitialization)
+        return fileTextWithNullInitialization
+
     # Prepare null check block
     nullCheckBlock = nullCheckBlock % tuple(daughterLinesToBeRemoved)
     nullCheckBlockInsertionPlace = fileTextWithNullInitialization.find(
                                         daughterLinesToBeRemoved[0])
+
     for daughterLineToBeRemoved in daughterLinesToBeRemoved:
-        fileTextWithNullInitialization = fileTextWithNullInitialization.replace(daughterLineToBeRemoved, "")
+        fileTextWithNullInitialization       = fileTextWithNullInitialization.replace(daughterLineToBeRemoved, "")
+        fileTextWithNullInitializationPrint  = fileTextWithNullInitializationPrint.replace(daughterLineToBeRemoved, "")
 
     ### TO PRINT 
     fileTextWithNullInitializationPrint = fileTextWithNullInitializationPrint[:nullCheckBlockInsertionPlace] \
@@ -266,8 +293,64 @@ def placeNullInitialization(lValue, daughterVariables, delimitedLines, fileText)
                                       + fileTextWithNullInitialization[nullCheckBlockInsertionPlace:]
 
 
+    getGreenText("@@@@ Adding it on line: %s"%str(lineNumber))
     print(fileTextWithNullInitializationPrint)
     return fileTextWithNullInitialization
+
+def getStartOfTheLine(keyPhraseOccurenceIndex, fileText, delimiter = ";"):
+    return fileText[:keyPhraseOccurenceIndex].rfind(delimiter)
+
+def getLineNumber(startIndex, fileText):
+    """
+    Get the number of line where search space text starts
+    """
+    return fileText[:startIndex].count("\n") - 1
+
+def getSearchSpaceText(fileText, keyPhrase):
+    """
+    Takes the entire file content, finds all occurences of keyphrase
+    and narrows down the search space where the script
+    should look for daughter variables
+    """
+    keyPhraseOccurenceIndexes = [x.start() for x in re.finditer(keyPhrase, fileText)]
+    
+    searchSpaceTexts = []
+    for keyPhraseOccurenceIndex in keyPhraseOccurenceIndexes:
+        searchSpaceText = ""
+        requiredEndParanthesis = 0 
+        charCount              = 0 
+
+        for char in fileText[keyPhraseOccurenceIndex : ]:
+            charCount += 1
+            if char == "{":
+                # Subtract 1 
+                requiredEndParanthesis += -1
+
+            if char == "}":
+                requiredEndParanthesis += 1
+
+            # Found exactly 1 NET end paranthesis
+            if requiredEndParanthesis == 1:
+                getStartOfTheLineIndex = getStartOfTheLine(keyPhraseOccurenceIndex,
+                    fileText)
+                startCharIndex            = getStartOfTheLineIndex+1
+                endCharIndex              = keyPhraseOccurenceIndex+charCount
+                searchSpaceText           = fileText[startCharIndex:endCharIndex]
+                searchSpaceTextLineNumber = getLineNumber(keyPhraseOccurenceIndex, fileText)
+                searchSpaceTextObject = SearchSpaceTextClass(searchSpaceText, 
+                    searchSpaceTextLineNumber, startCharIndex, endCharIndex)
+
+                searchSpaceTexts.append(searchSpaceTextObject)
+                break
+    '''
+    # Debug
+    for searchSpaceText in searchSpaceTexts:
+        print("START OF BLOCK")
+        print(searchSpaceText)
+        print("END OF BLOCK")
+        input("Wait")
+    '''
+    return searchSpaceTexts
 
 def main():
     #print(preProcessText(fileText))
@@ -280,7 +363,6 @@ def main():
         print("This file is empty!")
         return
 
-    delimitedLines     = preProcessText(fileText)
 
     # For Debugging purpose
     #for i in delimitedLines:
@@ -289,54 +371,62 @@ def main():
     # Find variable of interest
     variableOfInterest  = None
     keyPhraseOfInterest = "->one()"
-    for line in delimitedLines:
-        # Ignore the lines which don't 
-        if line.find(keyPhraseOfInterest) == -1:
-            continue
+    searchSpaceTextObjects = getSearchSpaceText(fileText, keyPhraseOfInterest)
 
-        lvalue = findVariableLHSInLine(line)
-        if lvalue:
-            variableOfInterest = lvalue
+    for searchSpaceTextObject in searchSpaceTextObjects:
 
-    if not variableOfInterest:
-        print("No variable of Interest found")
-        return    
+        searchSpaceText    = searchSpaceTextObject.searchSpaceText
+        delimitedLines     = preProcessText(searchSpaceText)
+        
+        for line in delimitedLines:
+            # Ignore the lines which don't 
+            if line.find(keyPhraseOfInterest) == -1:
+                continue
 
-    # See if it is initialized with null
-    if isVariableInitialized(variableOfInterest, delimitedLines):
-        print("Variable is already initialized")
-        return
+            lvalue = findVariableLHSInLine(line)
+            if lvalue:
+                variableOfInterest = lvalue
 
-    ### Find all its daughter variables of variableOfInterest
-    # Find lvalue -> rhsVariable map
-    #for  
-    dependencyMap     = {}
-    dependencyObjects = []
-    for line in delimitedLines:
-        dependencyObject = buildVariableDependenceMap(line)
+        if not variableOfInterest:
+            print("No variable of Interest found")
+            return
 
-        # If no { lValue : set(rValue) } is found continue
-        if not dependencyObject:
-            continue
+        # See if it is initialized with null
+        if isVariableInitialized(variableOfInterest, delimitedLines):
+            print("Variable is already initialized")
+            return
 
-        lineDependencyMap = dependencyObject.dependencyMap
-        dependencyObjects.append(dependencyObject)
-    
-        for lhsVariable, rhsVariableSet in lineDependencyMap.items():
-            rhsVariableSet_ = dependencyMap.get(lhsVariable, set([]))
-            rhsVariableSet_ = rhsVariableSet.union(rhsVariableSet_)
-            dependencyMap[lhsVariable] = set(rhsVariableSet_)
-            # Reset it
-            rhsVariableSet_ = set([])
+        ### Find all its daughter variables of variableOfInterest
+        # Find lvalue -> rhsVariable map
+        #for  
+        dependencyMap     = {}
+        dependencyObjects = []
+        for line in delimitedLines:
+            dependencyObject = buildVariableDependenceMap(line)
 
-    #print("---------")
-    #print("Final Dependency Map", dependencyMap)
+            # If no { lValue : set(rValue) } is found continue
+            if not dependencyObject:
+                continue
 
-    # Generate null initialization code
-    #modifiedCode = placeNullInitialization(variableOfInterest, delimitedLines, fileText)
-    fileTextWithNullInitialization = buildInitializationStatements(variableOfInterest, 
-                                        dependencyMap, delimitedLines, fileText)
-    writeFileContents(args.file, fileTextWithNullInitialization)
+            lineDependencyMap = dependencyObject.dependencyMap
+            dependencyObjects.append(dependencyObject)
+        
+            for lhsVariable, rhsVariableSet in lineDependencyMap.items():
+                rhsVariableSet_ = dependencyMap.get(lhsVariable, set([]))
+                rhsVariableSet_ = rhsVariableSet.union(rhsVariableSet_)
+                dependencyMap[lhsVariable] = set(rhsVariableSet_)
+                # Reset it
+                rhsVariableSet_ = set([])
+
+        # Generate null initialization code
+        #modifiedCode = placeNullInitialization(variableOfInterest, delimitedLines, fileText)
+        fileTextWithNullInitialization = buildInitializationStatements(variableOfInterest, 
+                                            dependencyMap, delimitedLines,
+                                                searchSpaceTextObject)
+        input("Is This Correct? Y/N: ")
+        os.system("cls")
+        os.system("clear")
+        #writeFileContents(args.file, fileTextWithNullInitialization)
     # Write to file
     #print(modifiedCode)
 
