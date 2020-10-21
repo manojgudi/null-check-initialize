@@ -1,10 +1,16 @@
 #!/usr/bin/python3
 
 import argparse
-import colorama
 import re
 import os
-from colorama import Fore, Style
+
+printInColor = True
+try:
+    import colorama
+    from colorama import Fore, Style
+except:
+    print("Didn't find colorama library, install it using pip. Disabling color")
+    printInColor = False
 
 ########## UTILITY CLASS ##############
 def readFileContents(qualifiedFilename):
@@ -17,6 +23,10 @@ def getGreenText(text, shouldPrint=True):
     """
     print text in green
     """
+    if not printInColor:
+        print(text)
+        return
+
     greenText = Fore.GREEN + text + Style.RESET_ALL
     if shouldPrint:
         print(greenText)
@@ -28,6 +38,10 @@ def getRedText(text, shouldPrint=True):
     """
     print text in red
     """
+    if not printInColor:
+        print(text)
+        return
+
     redText = Fore.RED + text + Style.RESET_ALL
     if shouldPrint:
         print(redText)
@@ -38,6 +52,10 @@ def getBlueText(text, shouldPrint=True):
     """
     print text in red
     """
+    if not printInColor:
+        print(text)
+        return
+
     blueText = Fore.BLUE  + text + Style.RESET_ALL
     if shouldPrint:
         print(blueText)
