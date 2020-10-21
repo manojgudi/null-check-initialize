@@ -34,6 +34,18 @@ def getRedText(text, shouldPrint=True):
 
     return redText
 
+def getBlueText(text, shouldPrint=True):
+    """
+    print text in red
+    """
+    blueText = Fore.BLUE  + text + Style.RESET_ALL
+    if shouldPrint:
+        print(blueText)
+
+    return blueText
+
+
+
 def writeFileContents(filePath, fileText):
     """
     filePath
@@ -158,7 +170,7 @@ def buildVariableDependenceMap(line):
 
 
 def buildInitializationStatements(variableOfInterest, dependencyMap, 
-            delimitedLines, searchSpaceTextObject):
+            delimitedLines, delimitedLinesEntireText, searchSpaceTextObject, nullCheck=True):
     """
     Generate code with null initialization
     """
@@ -170,9 +182,18 @@ def buildInitializationStatements(variableOfInterest, dependencyMap,
 
     # CASE 1 parent initialization | parent null check
     daughterVariables = findDaughterVariables(variableOfInterest, dependencyMap)
-    print("DaughterVariables ", daughterVariables)
 
-    return placeNullInitialization(variableOfInterest, daughterVariables, 
+    # Check if variable of interest and its daughter variables are initialized to null or not.
+    variablesToCheck = list(daughterVariables)
+    variablesToCheck.append(variableOfInterest)
+    for variableToCheck in variablesToCheck:
+        if isVariableInitialized(variableToCheck, delimitedLinesEntireText):
+            getBlueText("=> Variable %s is initialized with null"%variableToCheck)
+        else:
+            getRedText("=> Variable %s is NOT initialized with null"%variableToCheck)
+
+
+    return placeNullInitialization(variableOfInterest, daughterVariables, \
                     delimitedLines, searchSpaceTextObject)
 
 
@@ -195,7 +216,7 @@ def isVariableInitialized(lValue, delimitedLines):
     # If the lValue exists
     for line in delimitedLines:
         if (line.find("null") != -1) and (line.find(lValue) != -1):
-            print("Initialized here ", line)
+            #print("Initialized here ", line)
             return True
 
     return False
@@ -256,7 +277,7 @@ def placeNullInitialization(lValue, daughterVariables, delimitedLines, searchSpa
 
     # If there are no daughter variables
     if not daughterVariables:
-        getGreenText("@@@@ Adding it on line: %s"%str(lineNumber))
+        getGreenText("\n\n@@@@ Adding it on line: %s"%str(lineNumber))
         print(fileTextWithNullInitializationPrint)
         return fileTextWithNullInitialization
 
@@ -293,7 +314,7 @@ def placeNullInitialization(lValue, daughterVariables, delimitedLines, searchSpa
                                       + fileTextWithNullInitialization[nullCheckBlockInsertionPlace:]
 
 
-    getGreenText("@@@@ Adding it on line: %s"%str(lineNumber))
+    getGreenText("\n\n@@@@ Adding it on line: %s"%str(lineNumber))
     print(fileTextWithNullInitializationPrint)
     return fileTextWithNullInitialization
 
@@ -356,6 +377,7 @@ def main():
     #print(preProcessText(fileText))
     parser = argparse.ArgumentParser()
     parser.add_argument("file", help="PHP file to be analyzed")
+    parser.add_argument("-c", "--checkNull", type=int, default=1, help="Check if the variables used to store /modify query from result have been initialized or not")
     args = parser.parse_args()
 
     fileText = readFileContents(args.file)
@@ -369,8 +391,9 @@ def main():
     #    print(i)
 
     # Find variable of interest
-    variableOfInterest  = None
-    keyPhraseOfInterest = "->one()"
+    variableOfInterest         = None
+    keyPhraseOfInterest        = "->one()"
+    delimitedLinesEntireText   = preProcessText(fileText)
     searchSpaceTextObjects = getSearchSpaceText(fileText, keyPhraseOfInterest)
 
     for searchSpaceTextObject in searchSpaceTextObjects:
@@ -389,11 +412,6 @@ def main():
 
         if not variableOfInterest:
             print("No variable of Interest found")
-            return
-
-        # See if it is initialized with null
-        if isVariableInitialized(variableOfInterest, delimitedLines):
-            print("Variable is already initialized")
             return
 
         ### Find all its daughter variables of variableOfInterest
@@ -418,11 +436,15 @@ def main():
                 # Reset it
                 rhsVariableSet_ = set([])
 
-        # Generate null initialization code
-        #modifiedCode = placeNullInitialization(variableOfInterest, delimitedLines, fileText)
+        # TODO use this if you want to check variable initialization for lot more variables
+        #print("DEPENDENCY MAP ", dependencyMap)
+        #if isVariableInitialized(variableOfInterest, delimitedLinesEntireText):
+        #    print("Variable is already initialized")
+        #    return
+
         fileTextWithNullInitialization = buildInitializationStatements(variableOfInterest, 
-                                            dependencyMap, delimitedLines,
-                                                searchSpaceTextObject)
+                                            dependencyMap, delimitedLines, delimitedLinesEntireText,
+                                                searchSpaceTextObject, nullCheck=args.checkNull)
         input("Is This Correct? Y/N: ")
         os.system("cls")
         os.system("clear")
