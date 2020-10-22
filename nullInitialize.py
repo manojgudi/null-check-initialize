@@ -188,7 +188,7 @@ def buildVariableDependenceMap(line):
 
 
 def buildInitializationStatements(variableOfInterest, dependencyMap, 
-            delimitedLines, delimitedLinesEntireText, searchSpaceTextObject, nullCheck=True):
+            delimitedLines, delimitedLinesEntireText, searchSpaceTextObject, fileText, nullCheck=True):
     """
     Generate code with null initialization
     """
@@ -205,10 +205,19 @@ def buildInitializationStatements(variableOfInterest, dependencyMap,
     variablesToCheck = list(daughterVariables)
     variablesToCheck.append(variableOfInterest)
     for variableToCheck in variablesToCheck:
-        if isVariableInitialized(variableToCheck, delimitedLinesEntireText):
-            getBlueText("=> Variable %s is initialized with null"%variableToCheck)
+
+        # count line from start of the file to the first instance of the variableToCheck first found in the searchSpaceText
+        variableFirstFound       = searchSpaceTextObject.searchSpaceText.find(variableToCheck)
+        variableFirstFoundInFile = searchSpaceTextObject.startCharIndex + variableFirstFound
+        lineNumberVariable       = fileText[0:variableFirstFoundInFile].count("\n") + 1
+
+        # NOTE Fix lineCountActual
+        lineCountActual, isVariableInitialized_ = isVariableInitialized(variableToCheck,
+                                                        delimitedLinesEntireText)
+        if isVariableInitialized_:
+            getBlueText("=> Variable %s is initialized with null on line "%(variableToCheck))
         else:
-            getRedText("=> Variable %s is NOT initialized with null"%variableToCheck)
+            getRedText("=> Variable %s is NOT initialized with null on line %s "%(variableToCheck, lineNumberVariable))
 
 
     return placeNullInitialization(variableOfInterest, daughterVariables, \
@@ -230,14 +239,25 @@ def findDaughterVariables(variableOfInterest, dependencyMap):
 def isVariableInitialized(lValue, delimitedLines):
     """
     Check if the lvalue has been initialized with null value
+    If yes, which line
     """
+    lineCount              = 0
+    isVariableInitialized_ = False
+
     # If the lValue exists
     for line in delimitedLines:
+        lineCount += 1
         if (line.find("null") != -1) and (line.find(lValue) != -1):
             #print("Initialized here ", line)
-            return True
+            isVariableInitialized_ = True
 
-    return False
+    # Figure out lineCount on delimitedLines is lineCount when delimited by \n
+    text_ = ""
+    for line in delimitedLines[:lineCount+1]:
+        text_ += line
+
+    lineCountActual = text_.count("||")
+    return (lineCountActual, isVariableInitialized_)
 
 def generateNullInitialized(lValue):
     """
@@ -461,8 +481,8 @@ def main():
         #    return
 
         fileTextWithNullInitialization = buildInitializationStatements(variableOfInterest, 
-                                            dependencyMap, delimitedLines, delimitedLinesEntireText,
-                                                searchSpaceTextObject, nullCheck=args.checkNull)
+                dependencyMap, delimitedLines, delimitedLinesEntireText,
+                searchSpaceTextObject, fileText, nullCheck=args.checkNull)
         input("Is This Correct? Y/N: ")
         os.system("cls")
         os.system("clear")
