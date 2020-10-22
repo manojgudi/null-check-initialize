@@ -195,7 +195,11 @@ def buildInitializationStatements(variableOfInterest, dependencyMap,
     
     rValuesSet = dependencyMap.get(variableOfInterest, [])
     if not rValuesSet:
-        print("OOPS variableOfInterest not found in dependencyMap")
+        print("OOPS variableOfInterest not found in dependencyMap | Send Manoj the file name and debug line below:\n\n")
+        print("--------------COPY--------------\n")
+        print(dependencyMap)
+        print("Variable Of Interest", variableOfInterest)
+        print("\n--------------END COPY-------------")
         return
 
     # CASE 1 parent initialization | parent null check
