@@ -1,4 +1,4 @@
-Auto Null Initialization Script
+Auto Null Initialization Script For Shitty PHP Script
 =============
 
 Currently finds a very simple case and its still under heavy development.

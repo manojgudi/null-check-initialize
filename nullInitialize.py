@@ -74,7 +74,7 @@ def writeFileContents(filePath, fileText):
     fileHandler = open(filePath_, "w")
     fileHandler.write(fileText)
     fileHandler.close()
-    
+
 
 #######################################
 class DependencyObject:
@@ -135,7 +135,7 @@ def findVariableLHSInLine(line):
     # If lvalueList is empty, then exit
     if not variableList:
         return 
- 
+
     #print("Variable List", variableList)   
     return "$"+variableList[0]
 
@@ -192,7 +192,7 @@ def buildInitializationStatements(variableOfInterest, dependencyMap,
     """
     Generate code with null initialization
     """
-    
+
     rValuesSet = dependencyMap.get(variableOfInterest, [])
     if not rValuesSet:
         print("OOPS variableOfInterest not found in dependencyMap | Send Manoj the file name and debug line below:\n\n")
@@ -288,7 +288,7 @@ def placeNullInitialization(lValue, daughterVariables, delimitedLines, searchSpa
             break
 
         firstInstanceLine += 1
-    
+
     delimitedLinesWithoutPreprocessing = fileText.split(";")
     # Place if properly
     if firstInstanceLine == 0:
@@ -311,7 +311,8 @@ def placeNullInitialization(lValue, daughterVariables, delimitedLines, searchSpa
 
     fileTextWithNullInitializationPrint = ""
     for line in delimitedLinesWithoutPreprocessing[:-1]:
-        fileTextWithNullInitializationPrint += line + ";"
+        if line:
+            fileTextWithNullInitializationPrint += line + ";"
 
 
     # Append last line without colon
@@ -350,7 +351,7 @@ def placeNullInitialization(lValue, daughterVariables, delimitedLines, searchSpa
     fileTextWithNullInitializationPrint = fileTextWithNullInitializationPrint[:nullCheckBlockInsertionPlace] \
                                       + "\n " + getGreenText(nullCheckBlock, False) \
                                       + fileTextWithNullInitializationPrint[nullCheckBlockInsertionPlace:]
-    
+
     fileTextWithNullInitialization  = fileTextWithNullInitialization[:nullCheckBlockInsertionPlace] \
                                       + "\n " + nullCheckBlock \
                                       + fileTextWithNullInitialization[nullCheckBlockInsertionPlace:]
@@ -376,7 +377,7 @@ def getSearchSpaceText(fileText, keyPhrase):
     should look for daughter variables
     """
     keyPhraseOccurenceIndexes = [x.start() for x in re.finditer(keyPhrase, fileText)]
-    
+
     searchSpaceTexts = []
     for keyPhraseOccurenceIndex in keyPhraseOccurenceIndexes:
         searchSpaceText = ""
@@ -442,7 +443,7 @@ def main():
 
         searchSpaceText    = searchSpaceTextObject.searchSpaceText
         delimitedLines     = preProcessText(searchSpaceText)
-        
+
         for line in delimitedLines:
             # Ignore the lines which don't 
             if line.find(keyPhraseOfInterest) == -1:
@@ -470,7 +471,7 @@ def main():
 
             lineDependencyMap = dependencyObject.dependencyMap
             dependencyObjects.append(dependencyObject)
-        
+
             for lhsVariable, rhsVariableSet in lineDependencyMap.items():
                 rhsVariableSet_ = dependencyMap.get(lhsVariable, set([]))
                 rhsVariableSet_ = rhsVariableSet.union(rhsVariableSet_)
@@ -487,7 +488,10 @@ def main():
         fileTextWithNullInitialization = buildInitializationStatements(variableOfInterest, 
                 dependencyMap, delimitedLines, delimitedLinesEntireText,
                 searchSpaceTextObject, fileText, nullCheck=args.checkNull)
-        input("Is This Correct? Y/N: ")
+        continuePrompt = input("Continue [Enter] or quit [Q/q]: ")
+        if continuePrompt.lower() == "q":
+            print("Exiting ...")
+            return
         os.system("cls")
         os.system("clear")
         #writeFileContents(args.file, fileTextWithNullInitialization)
